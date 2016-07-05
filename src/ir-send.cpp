@@ -4,17 +4,38 @@
 #include <PubSubClient.h>
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
+#include <IRremoteESP8266.h>
 
 const char* ssid = "VM802911-2G";
 const char* password = "pvxsbqqx";
 const char* mqtt_server = "192.168.0.3";
+const char* tv_out_topic = "esp_ir";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
 char msg[50];
 int value = 0;
+int ir_pin = 0; // apparently only works with pin 0
 
+IRsend irsend(ir_pin);
+
+// TV remote Stuff
+void samsungPower(){
+  unsigned int S_pwr[68]={4600,4350,700,1550,650,1550,650,1600,650,450,650,450,650,450,650,450,700,400,700,1550,650,1550,650,1600,650,450,650,450,650,450,700,450,650,450,650,450,650,1550,700,450,650,450,650,450,650,450,650,450,700,400,650,1600,650,450,650,1550,650,1600,650,1550,650,1550,700,1550,650,1550,650};
+  irsend.sendRaw(S_pwr, 68, 38);
+  delay(1000);
+}
+
+void samsungVolUP(){
+  unsigned int S_vup[68]={4600,4350,650,1550,700,1500,700,1550,700,400,700,400,700,450,650,450,700,400,700,1500,700,1550,650,1550,700,400,700,400,700,450,650,450,700,400,700,1500,700,1550,650,1550,700,400,700,450,700,400,700,400,700,400,700,450,650,450,650,450,650,1550,700,1500,700,1550,700,1500,700,1550,650};
+  irsend.sendRaw(S_vup, 68, 38);
+}
+
+void samsungVolDwn(){
+   unsigned int S_vdown[68]={4600,4350,700,1550,650,1550,700,1500,700,450,650,450,700,400,700,400,700,400,700,1550,700,1500,700,1550,700,400,700,400,700,400,700,450,650,450,650,1550,700,1500,700,450,650,1550,700,400,700,400,700,450,700,400,700,400,700,400,700,1550,700,400,700,1500,700,1500,700,1550,700,1500,700};
+   irsend.sendRaw(S_vdown, 68, 38);
+}
 
 void setup_wifi() {
 
@@ -48,7 +69,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
   Serial.println(stringOne);
   if (stringOne.equals("tv-on")) {
-    Serial.println("turning on tv");
+    samsungPower();
+  }
+  if (stringOne.equals("volume-up")) {
+    samsungVolUP();
+  }
+  if (stringOne.equals("volume-down")) {
+    samsungVolDwn();
   }
 
 
@@ -73,7 +100,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         // Once connected, publish an announcement...
         client.publish("outTopic", "hello world");
         // ... and resubscribe
-        client.subscribe("inTopic");
+        client.subscribe(tv_out_topic);
       } else {
         Serial.print("failed, rc=");
         Serial.print(client.state());
@@ -86,11 +113,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   void setup()
   {
-    pinMode(A0, INPUT);
-    Serial.begin(115200);
-    Serial.println();
-    Serial.println();
 
+    irsend.begin();
     Serial.begin(115200);
     setup_wifi();
     client.setServer(mqtt_server, 1883);
