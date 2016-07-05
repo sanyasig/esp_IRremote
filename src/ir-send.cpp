@@ -5,61 +5,103 @@
 #include "Adafruit_MQTT.h"
 #include "Adafruit_MQTT_Client.h"
 
-int moist_pin = 4;
-char ssid[] = "CV-Guest";  //  your network SSID (name)
-char pass[] = "Chalcr0ft";
+const char* ssid = "VM802911-2G";
+const char* password = "pvxsbqqx";
+const char* mqtt_server = "192.168.0.3";
 
-#define AIO_SERVER      "io.adafruit.com"
-#define AIO_SERVERPORT  1883                   // use 8883 for SSL
-#define AIO_USERNAME    "nani76gsrao"
-#define AIO_KEY         "e07d65d3ec6a47c4a8bd4b31b28d3d62"
-const char MQTT_SERVER[] PROGMEM    = AIO_SERVER;
-const char MQTT_USERNAME[] PROGMEM  = AIO_USERNAME;
-const char MQTT_PASSWORD[] PROGMEM  = AIO_KEY;
-// Create an ESP8266 WiFiClient class to connect to the MQTT server.
-WiFiClient client;
-Adafruit_MQTT_Client mqtt(&client, MQTT_SERVER, AIO_SERVERPORT, MQTT_USERNAME, MQTT_PASSWORD);
-const char PHOTOCELL_FEED[] PROGMEM = AIO_USERNAME "/photocell";
-Adafruit_MQTT_Publish photocell = Adafruit_MQTT_Publish(&mqtt, PHOTOCELL_FEED);
+WiFiClient espClient;
+PubSubClient client(espClient);
+long lastMsg = 0;
+char msg[50];
+int value = 0;
 
-void setup()
-{
 
-   pinMode(A0, INPUT);
-   Serial.begin(115200);
-   Serial.println();
-   Serial.println();
+void setup_wifi() {
 
-   // We start by connecting to a WiFi network
-   Serial.print("Connecting to ");
-   Serial.println(ssid);
-   WiFi.begin(ssid, pass);
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
 
-   while (WiFi.status() != WL_CONNECTED) {
-     delay(500);
-     Serial.print(".");
-   }
+  WiFi.begin(ssid, password);
 
-   Serial.println("");
-
-   Serial.println("WiFi connected");
-   Serial.println("IP address: ");
-   Serial.println(WiFi.localIP());
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
 
-void loop() {
-  Serial.print("number from sensor");
-  Serial.print(analogRead(A0));
-  int x = analogRead(A0);
-  Serial.print(F("\nSending photocell val "));
-  Serial.print(x);
-  Serial.print("...");
-  if (! photocell.publish(x++)) {
-    Serial.println(F("Failed"));
-  } else {
-    Serial.println(F("OK!"));
-  }
-
-  //if(analo)
-  delay(2000);
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
 }
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+    String stringOne = "";
+  for (int i = 0; i < length; i++) {
+    stringOne += (char)(payload[i]);
+  }
+  Serial.println();
+  Serial.println(stringOne);
+  if (stringOne.equals("tv-on")) {
+    Serial.println("turning on tv");
+  }
+
+
+  // Switch on the LED if an 1 was received as first character
+  if ((char)payload[0] == '1') {
+    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
+      // but actually the LED is on; this is because
+      // it is acive low on the ESP-01)
+    } else {
+      digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+    }
+
+  }
+
+  void reconnect() {
+    // Loop until we're reconnected
+    while (!client.connected()) {
+      Serial.print("Attempting MQTT connection...");
+      // Attempt to connect
+      if (client.connect("ESP8266Client")) {
+        Serial.println("connected");
+        // Once connected, publish an announcement...
+        client.publish("outTopic", "hello world");
+        // ... and resubscribe
+        client.subscribe("inTopic");
+      } else {
+        Serial.print("failed, rc=");
+        Serial.print(client.state());
+        Serial.println(" try again in 5 seconds");
+        // Wait 5 seconds before retrying
+        delay(5000);
+      }
+    }
+  }
+
+  void setup()
+  {
+    pinMode(A0, INPUT);
+    Serial.begin(115200);
+    Serial.println();
+    Serial.println();
+
+    Serial.begin(115200);
+    setup_wifi();
+    client.setServer(mqtt_server, 1883);
+    client.setCallback(callback);
+  }
+
+  void loop() {
+
+    if (!client.connected()) {
+      reconnect();
+    }
+    client.loop();
+
+  }
